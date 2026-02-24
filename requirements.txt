@@ -1,0 +1,17 @@
+# 核心基础
+python-dotenv>=1.0.0
+requests>=2.31.0
+pyyaml>=6.0.1
+
+# AI 适配器
+openai>=1.12.0
+anthropic>=0.17.0
+
+# 微调与数据处理 (本地训练需要)
+torch>=2.2.0
+transformers>=4.38.0
+datasets>=2.17.0
+peft>=0.8.0            # 参数高效微调 (LoRA)
+bitsandbytes>=0.42.0   # 8-bit/4-bit 量化，节省显存
+accelerate>=0.27.0     # 加速训练分布式
+tqdm>=4.66.0           # 进度条
