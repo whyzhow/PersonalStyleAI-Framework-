@@ -1,0 +1,76 @@
+import torch
+from datasets import load_dataset
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    TrainingArguments,
+    Trainer,
+    DataCollatorForSeq2Seq
+)
+from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
+
+class LocalLoraTrainer:
+    def __init__(self, model_id: str, data_path: str, output_dir: str):
+        self.model_id = model_id
+        self.data_path = data_path
+        self.output_dir = output_dir
+        self.tokenizer = AutoTokenizer.from_pretrained(model_id)
+        self.tokenizer.pad_token = self.tokenizer.eos_token
+
+    def prepare_data(self):
+        # 加载我们之前清洗好的 JSONL 数据
+        dataset = load_dataset("json", data_files=self.data_path, split="train")
+        
+        def tokenize_function(examples):
+            # 将对话格式转换为模型可理解的 tokens
+            # 这里简化了逻辑，实际需根据模型 template (如 Llama3) 调整
+            texts = [f"{m[0]['content']} \n {m[1]['content']}" for m in examples["messages"]]
+            return self.tokenizer(texts, truncation=True, padding="max_length", max_length=512)
+
+        return dataset.map(tokenize_function, batched=True)
+
+    def train(self):
+        # 1. 加载量化模型以节省显存 (4-bit)
+        model = AutoModelForCausalLM.from_pretrained(
+            self.model_id,
+            load_in_4bit=True,
+            device_map="auto",
+            torch_dtype=torch.float16
+        )
+        model = prepare_model_for_kbit_training(model)
+
+        # 2. 配置 LoRA 参数
+        lora_config = LoraConfig(
+            r=8, 
+            lora_alpha=32,
+            target_modules=["q_proj", "v_proj"], # 针对 Transformer 的注意力层
+            lora_dropout=0.05,
+            bias="none",
+            task_type="CAUSAL_LM"
+        )
+        model = get_peft_model(model, lora_config)
+
+        # 3. 设置训练参数
+        training_args = TrainingArguments(
+            output_dir=self.output_dir,
+            per_device_train_batch_size=4,
+            gradient_accumulation_steps=4,
+            learning_rate=2e-4,
+            num_train_epochs=3,
+            logging_steps=10,
+            save_strategy="epoch",
+            fp16=True # 开启半精度训练
+        )
+
+        # 4. 启动训练器
+        trainer = Trainer(
+            model=model,
+            args=training_args,
+            train_dataset=self.prepare_data(),
+            data_collator=DataCollatorForSeq2Seq(self.tokenizer, padding=True)
+        )
+        
+        trainer.train()
+        # 5. 保存微调后的“风格插件” (Adapter)
+        model.save_pretrained(f"{self.output_dir}/final_adapter")
+        print(f"训练完成！风格插件已保存至 {self.output_dir}/final_adapter")
