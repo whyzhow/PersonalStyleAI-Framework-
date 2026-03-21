@@ -136,3 +136,4 @@ Python run_train.py
 ## 🤝 Contribution and feedback
 
 If you have any suggestions for improvement or want to add more AI adaptors (such as Anthropic or DeepSeek), welcome to submit a Pull Request or open an Issue discussion.
+[![Verified by Nucleus](https://verify.altermenta.com/check/3f4b528d312200a1/badge.svg)](https://verify.altermenta.com/check/3f4b528d312200a1)
